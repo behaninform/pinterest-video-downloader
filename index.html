@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Paste a Pinterest video Pin URL and check whether the self-hosted downloader can retrieve it.">
+<title>Pinterest Video Downloader</title>
+<style>
+:root{--red:#bd081c;--ink:#242432;--muted:#707080;--paper:#f7f7fb;--line:#e7e7ef}
+*{box-sizing:border-box}body{margin:0;padding:22px 14px;background:linear-gradient(#fff3f4,#f7f7fb 280px);font:16px/1.55 Arial,sans-serif;color:var(--ink)}
+.wrap{max-width:760px;margin:auto}.hero{text-align:center;padding:18px 8px 24px}.logo{display:grid;place-items:center;width:60px;height:60px;margin:0 auto 12px;border-radius:19px;background:var(--red);color:white;font-size:32px;font-weight:800}
+h1{font-size:clamp(27px,5vw,40px);line-height:1.1;margin:0 0 12px;letter-spacing:-1px}.hero p{max-width:580px;margin:auto;color:var(--muted)}
+.card{background:white;border:1px solid var(--line);border-radius:22px;padding:clamp(18px,4vw,30px);box-shadow:0 14px 40px #24243a0b}
+label{display:block;font-weight:700;margin-bottom:9px;font-size:14px}.row{display:flex;gap:10px}
+input{min-width:0;flex:1;border:1px solid #d7d7e2;border-radius:12px;padding:15px;font-size:15px;outline:none}input:focus{border-color:var(--red);box-shadow:0 0 0 3px #bd081c15}
+button,.btn{border:0;border-radius:12px;background:var(--red);color:white;font-weight:700;padding:14px 18px;font-size:15px;cursor:pointer;text-decoration:none;display:inline-flex;justify-content:center;align-items:center}
+button:disabled{opacity:.6;cursor:wait}.hint,.fine{font-size:12px;color:var(--muted);margin:10px 2px 0;line-height:1.6}
+.status{display:none;margin-top:17px;padding:14px;border-radius:12px;font-size:14px;overflow-wrap:anywhere}.status.show{display:block}.info{background:#f2f3ff;border:1px solid #dfe0ff}.good{background:#effaf3;border:1px solid #ccebd7}.warn{background:#fff5e6;border:1px solid #f0dfba}
+.result{display:none;margin-top:18px;border-top:1px solid var(--line);padding-top:18px}.result.show{display:block}.result img{display:block;max-width:100%;max-height:260px;object-fit:contain;border-radius:12px;margin-bottom:12px}.result h2{font-size:18px;margin:0 0 8px}.download{width:100%;margin-top:14px}.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px}.step{padding:15px;border:1px solid var(--line);border-radius:15px;background:#fff}.step b{display:block;margin-bottom:5px}.step p{margin:0;color:var(--muted);font-size:12px}
+footer{text-align:center;color:var(--muted);font-size:12px;padding:22px 6px}
+@media(max-width:560px){.row{flex-direction:column}.row button{width:100%}.steps{grid-template-columns:1fr}}
+</style>
+</head>
+<body><div class="wrap">
+<header class="hero"><div class="logo">P</div><h1>Pinterest Video Downloader</h1><p>Paste a video Pin link to check it and download through the connected backend.</p></header>
+<main class="card">
+<label for="url">Pinterest video Pin URL</label><div class="row"><input id="url" type="url" placeholder="https://www.pinterest.com/pin/..." autocomplete="url"><button id="check">Find Video</button></div>
+<p class="hint">Use public Pinterest Pin links only. Private Pins and login-protected content are not supported.</p>
+<div id="status" class="status" role="status" aria-live="polite"></div>
+<div id="result" class="result"><img id="thumb" alt="Video thumbnail" hidden><h2 id="title"></h2><p id="meta" class="hint"></p><a id="download" class="btn download" href="#">Download Video</a></div>
+<p class="fine"><strong>Use responsibly:</strong> Download only content you own or have permission to save. Respect creator rights and Pinterest's terms. Availability can change if Pinterest changes its systems.</p>
+</main>
+<section class="steps"><div class="step"><b>1. Paste the link</b><p>Copy a public Pinterest video Pin URL.</p></div><div class="step"><b>2. Find the video</b><p>The backend checks whether a video is available.</p></div><div class="step"><b>3. Download</b><p>If supported, use the download button to stream the file.</p></div></section>
+<footer>Self-hosted tool · Link processing happens on the server you deploy.</footer>
+</div>
+<script>
+const input=document.getElementById('url'),check=document.getElementById('check'),statusBox=document.getElementById('status'),result=document.getElementById('result');
+function status(message,type){statusBox.className='status show '+type;statusBox.textContent=message}
+check.addEventListener('click',async()=>{
+ const url=input.value.trim();
+ if(!url){status('Please paste a Pinterest Pin URL.','warn');return}
+ check.disabled=true;check.textContent='Checking…';result.className='result';statusBox.className='status'; 
+ try{
+  const response=await fetch('/api/info',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})});
+  const data=await response.json();
+  if(!response.ok)throw new Error(data.error||'Could not retrieve this video.');
+  document.getElementById('title').textContent=data.title||'Pinterest video';
+  document.getElementById('meta').textContent=data.duration?`Duration: ${Math.round(data.duration)} seconds · Source: ${data.extractor||'Pinterest'}`:`Source: ${data.extractor||'Pinterest'}`;
+  const thumb=document.getElementById('thumb');
+  if(data.thumbnail){thumb.src=data.thumbnail;thumb.hidden=false}else{thumb.hidden=true;thumb.removeAttribute('src')}
+  document.getElementById('download').href='/api/download?url='+encodeURIComponent(url);
+  result.className='result show';status('Video information found. If the Pin is accessible, you can try downloading it.','good');
+ }catch(e){status(e.message+' If the problem continues, the server may need an updated yt-dlp version or the Pin may be unavailable.','warn')}
+ finally{check.disabled=false;check.textContent='Find Video'}
+});
+input.addEventListener('keydown',e=>{if(e.key==='Enter')check.click()});
+</script></body></html>

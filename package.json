@@ -1,0 +1,18 @@
+{
+  "name": "pinterest-video-downloader",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A small self-hosted Pinterest video link helper with a server-side yt-dlp backend.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.0.0"
+  }
+}
