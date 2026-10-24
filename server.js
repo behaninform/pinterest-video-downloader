@@ -29,7 +29,11 @@ function run(args, timeoutMs = 120000) {
     p.on("error", e => { clearTimeout(t); reject(e); });
     p.on("close", code => {
       clearTimeout(t);
-      code === 0 ? resolve(out) : reject(new Error(err.trim().split("\n").pop() || "yt-dlp failed"));
+      if (code === 0) return resolve(out);
+      const lines = err.trim().split("\n").filter(Boolean);
+      const errLine = lines.reverse().find(l => l.includes("ERROR")) || lines[0] || "yt-dlp failed";
+      console.error("yt-dlp error:", err);
+      reject(new Error(errLine));
     });
   });
 }
@@ -52,14 +56,15 @@ app.get("/api/download", async (req, res) => {
   const id = crypto.randomBytes(8).toString("hex");
   const base = path.join(os.tmpdir(), "pin_" + id);
   try {
-    await run(["-f", "best[ext=mp4]/best", "--merge-output-format", "mp4", "--no-playlist",
-      "--no-warnings", "-o", base + ".%(ext)s", url], 180000);
+    await run(["-f", "b/bv*+ba", "--merge-output-format", "mp4", "--no-playlist",
+      "--no-warnings", "-o", base + ".%(ext)s", url], 280000);
     const file = fs.readdirSync(os.tmpdir()).find(f => f.startsWith("pin_" + id));
     if (!file) throw new Error("No file");
     const full = path.join(os.tmpdir(), file);
     res.download(full, "pinterest-video" + path.extname(file), () => fs.unlink(full, () => {}));
   } catch (e) {
-    res.status(500).send("Download failed. Try again.");
+    console.error("download error:", e.message);
+    res.status(500).send("Download failed: " + e.message);
   }
 });
 
