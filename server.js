@@ -44,24 +44,46 @@ app.post("/api/info", async (req, res) => {
   try {
     const out = await run(["-J", "--no-playlist", "--no-warnings", url]);
     const info = JSON.parse(out);
-    res.json({ title: info.title || "Pinterest video", thumbnail: info.thumbnail || null, duration: info.duration || null });
+    const best = {};
+    (info.formats || []).forEach(f => {
+      if (f.vcodec && f.vcodec !== "none" && f.height) {
+        const size = f.filesize || f.filesize_approx || 0;
+        if (!best[f.height] || size > best[f.height]) best[f.height] = size;
+      }
+    });
+    const heights = Object.keys(best).map(Number).sort((a, b) => b - a).map(h => ({ height: h, size: best[h] || null }));
+    res.json({
+      title: info.title || "Pinterest video",
+      thumbnail: info.thumbnail || null,
+      duration: info.duration || null,
+      uploader: info.uploader || info.channel || null,
+      heights
+    });
   } catch (e) {
-    res.status(422).json({ error: "No downloadable video found. Make sure it is a public video Pin." });
+    console.error("info error:", e.message);
+    res.status(422).json({ error: "No downloadable video found. Make sure it is a public Pinterest video Pin." });
   }
 });
 
 app.get("/api/download", async (req, res) => {
   const url = (req.query.url || "").toString().trim();
   if (!validPinterestUrl(url)) return res.status(400).send("Invalid link");
+  const audio = req.query.type === "audio";
+  let h = parseInt(req.query.h, 10);
+  if (!(h >= 144 && h <= 4320)) h = 0;
   const id = crypto.randomBytes(8).toString("hex");
   const base = path.join(os.tmpdir(), "pin_" + id);
+  const args = audio
+    ? ["-x", "--audio-format", "mp3", "-f", "ba/b"]
+    : ["-f", h ? `b[height<=${h}]/bv*[height<=${h}]+ba/b` : "b/bv*+ba", "--merge-output-format", "mp4"];
   try {
-    await run(["-f", "b/bv*+ba", "--merge-output-format", "mp4", "--no-playlist",
-      "--no-warnings", "-o", base + ".%(ext)s", url], 280000);
+    await run([...args, "--no-playlist", "--no-warnings",
+      "-o", base + ".%(ext)s", url], 280000);
     const file = fs.readdirSync(os.tmpdir()).find(f => f.startsWith("pin_" + id));
     if (!file) throw new Error("No file");
     const full = path.join(os.tmpdir(), file);
-    res.download(full, "pinterest-video" + path.extname(file), () => fs.unlink(full, () => {}));
+    const name = audio ? "pinterest-audio" : "pinterest-video" + (h ? "-" + h + "p" : "");
+    res.download(full, name + path.extname(file), () => fs.unlink(full, () => {}));
   } catch (e) {
     console.error("download error:", e.message);
     res.status(500).send("Download failed: " + e.message);
